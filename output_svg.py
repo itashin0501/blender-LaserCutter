@@ -32,9 +32,14 @@ class LC_OT_SVG(bpy.types.Operator):
 
         thickness = context.scene.thicknessBoardF
         global sumWidth
+        global maxHeight
         global curX
         sumWidth = 0
+        maxHeight = 0
         curX = 0
+        canvasPadding = 5 # (mm)
+        svgRate = 37.766 #柏の葉レーザーカッター用の係数
+
         # bpy.ops.object.select_all(action='DESELECT')
 
         targetObjects = bpy.context.selected_objects
@@ -71,6 +76,7 @@ class LC_OT_SVG(bpy.types.Operator):
             #     bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
 
             sumWidth += calc.lcLength(obj.dimensions[0])
+            maxHeight = max([maxHeight, calc.lcLength(obj.dimensions[1])])
 
             obj.select_set(False)
 
@@ -100,8 +106,9 @@ class LC_OT_SVG(bpy.types.Operator):
 
             trx = calc.lcLength(obj.dimensions[0]) / 20
             curX += trx
-            obj.location[0] = curX
-            obj.location[1] = calc.lcLength(obj.dimensions[1]) / 20
+            # obj.location[0] = curX
+            obj.location[0] = calc.lcLength(obj.dimensions[0]) / 20 + (canvasPadding / svgRate * 2)
+            obj.location[1] = calc.lcLength(obj.dimensions[1]) / 20 + (canvasPadding / svgRate * 2)
             obj.location[2] = 0
             curX += trx + tMargin
 
@@ -162,14 +169,14 @@ class LC_OT_SVG(bpy.types.Operator):
         # points = []
 
         # 出力するSVGファイルを開いておく(パーツごと)
-        dwgAll = svgwrite.Drawing(saveSvgFilePath + 'all.svg', profile='tiny')
+        dwgAll = svgwrite.Drawing(saveSvgFilePath + 'all.svg', profile='tiny', size=(str(sumWidth + canvasPadding) + 'mm', str(maxHeight + canvasPadding) + 'mm'))
         for obj in targetObjects:
             if obj.type != "MESH" or obj.hide_viewport:
                 obj.hide_viewport = False
                 continue
 
             # 出力するSVGファイルを開いておく(パーツごと)
-            dwg = svgwrite.Drawing(saveSvgFilePath + obj.name + '.svg', profile='tiny')
+            dwg = svgwrite.Drawing(saveSvgFilePath + obj.name + '.svg', profile='tiny', size=(str(calc.lcLength(obj.dimensions[0]) + canvasPadding) + 'mm', str(calc.lcLength(obj.dimensions[1]) + canvasPadding) + 'mm'))
 
             mw = obj.matrix_world
             # 各オブジェクトの頂点の座標がオブジェクトローカルの座標になるので、0をオブジェクトの基準点にする
@@ -178,7 +185,6 @@ class LC_OT_SVG(bpy.types.Operator):
             bm = bmesh.new()
             bm.from_mesh(obj.data)
             verts = []
-            svgRate = 37.77 #柏の葉レーザーカッター用の係数
             for ed in bm.edges:
                 v1co = mw @ ed.verts[0].co
                 v2co = mw @ ed.verts[1].co
@@ -192,7 +198,7 @@ class LC_OT_SVG(bpy.types.Operator):
             bm.free()
 
             dwg.save()
-        dwgAll.save()
+        # dwgAll.save()
 
         bpy.ops.scene.delete()
 
